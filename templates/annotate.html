@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Annotate Image</title>
+    <style>
+      #canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        border: 1px solid black;
+      }
+      #container {
+        position: relative;
+        display: inline-block;
+      }
+      #image {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Annotate Image</h1>
+    <div id="container">
+      <img id="image" src="/uploads/{{ filename }}" alt="Image to annotate">
+      <canvas id="canvas"></canvas>
+    </div>
+    <form id="annotationForm" action="/save_annotation" method="post">
+      <input type="hidden" name="filename" value="{{ filename }}">
+      <input type="hidden" name="x">
+      <input type="hidden" name="y">
+      <input type="hidden" name="width">
+      <input type="hidden" name="height">
+      <input type="submit" value="Save Annotation">
+    </form>
+    <script>
+      const image = document.getElementById('image');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const form = document.getElementById('annotationForm');
+      let startX, startY, isDrawing = false;
+
+      image.onload = () => {
+        canvas.width = image.width;
+        canvas.height = image.height;
+      };
+
+      canvas.addEventListener('mousedown', (e) => {
+        startX = e.offsetX;
+        startY = e.offsetY;
+        isDrawing = true;
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (isDrawing) {
+          const x = e.offsetX;
+          const y = e.offsetY;
+          const width = x - startX;
+          const height = y - startY;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(image, 0, 0);
+          ctx.strokeRect(startX, startY, width, height);
+        }
+      });
+
+      canvas.addEventListener('mouseup', (e) => {
+        if (isDrawing) {
+          const x = e.offsetX;
+          const y = e.offsetY;
+          const width = x - startX;
+          const height = y - startY;
+          form.elements['x'].value = startX;
+          form.elements['y'].value = startY;
+          form.elements['width'].value = width;
+          form.elements['height'].value = height;
+          isDrawing = false;
+        }
+      });
+    </script>
+  </body>
+</html>

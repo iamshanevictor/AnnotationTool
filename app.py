@@ -1,0 +1,53 @@
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+import os
+from PIL import Image
+import csv
+
+app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+ANNOTATIONS_FILE = 'annotations.csv'
+
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+# Write header to CSV file if it doesn't exist
+if not os.path.exists(ANNOTATIONS_FILE):
+    with open(ANNOTATIONS_FILE, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Image Index', 'Finding Label', 'Bbox [x', 'y', 'w', 'h]'])
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return redirect(request.url)
+    file = request.files['file']
+    if file.filename == '':
+        return redirect(request.url)
+    if file:
+        filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+        file.save(filepath)
+        return redirect(url_for('annotate', filename=file.filename))
+    return redirect(request.url)
+
+@app.route('/annotate/<filename>')
+def annotate(filename):
+    return render_template('annotate.html', filename=filename)
+
+@app.route('/save_annotation', methods=['POST'])
+def save_annotation():
+    data = request.form
+    with open(ANNOTATIONS_FILE, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([data['filename'], 'Finding Label', data['x'], data['y'], data['width'], data['height']])
+    return 'Annotation saved'
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
+if __name__ == '__main__':
+    app.run(debug=True)
