@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 import os
-from PIL import Image
 import csv
 
 app = Flask(__name__)
@@ -14,7 +13,7 @@ if not os.path.exists(UPLOAD_FOLDER):
 if not os.path.exists(ANNOTATIONS_FILE):
     with open(ANNOTATIONS_FILE, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['Image Index', 'Finding Label', 'Bbox [x', 'y', 'w', 'h]'])
+        writer.writerow(['image_id', 'class_name', 'x_min', 'y_min', 'x_max', 'y_max'])
 
 @app.route('/')
 def index():
@@ -39,11 +38,20 @@ def annotate(filename):
 
 @app.route('/save_annotation', methods=['POST'])
 def save_annotation():
-    data = request.form
+    annotations = request.form.get('annotations')
+    annotations = eval(annotations)  # Convert string representation of list to list
+    
+    # Save to CSV
     with open(ANNOTATIONS_FILE, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([data['filename'], 'Finding Label', data['x'], data['y'], data['width'], data['height']])
-    return 'Annotation saved'
+        for annotation in annotations:
+            x_min = annotation['bbox'][0]
+            y_min = annotation['bbox'][1]
+            x_max = x_min + annotation['bbox'][2]
+            y_max = y_min + annotation['bbox'][3]
+            writer.writerow([annotation['filename'], annotation['label'], x_min, y_min, x_max, y_max])
+    
+    return redirect(url_for('index'))
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):

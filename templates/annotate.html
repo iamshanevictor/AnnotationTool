@@ -17,6 +17,21 @@
       #image {
         display: block;
       }
+      .box {
+        position: absolute;
+        border: 2px solid red;
+        overflow: auto;
+      }
+      .label {
+        position: absolute;
+        top: -20px;
+        left: 0;
+        background: white;
+        color: black;
+        padding: 2px 5px;
+        font-size: 10px;
+        border: 1px solid black;
+      }
     </style>
   </head>
   <body>
@@ -25,56 +40,126 @@
       <img id="image" src="/uploads/{{ filename }}" alt="Image to annotate">
       <canvas id="canvas"></canvas>
     </div>
+    <button id="addBox">Add Box</button>
+    <button id="saveAnnotations">Save Annotations</button>
+    <select id="labelSelect">
+      <option value="Symptom 1">Symptom 1</option>
+      <option value="Symptom 2">Symptom 2</option>
+      <option value="Symptom 3">Symptom 3</option>
+    </select>
+    <button id="deleteBox">Delete Box</button>
     <form id="annotationForm" action="/save_annotation" method="post">
       <input type="hidden" name="filename" value="{{ filename }}">
-      <input type="hidden" name="x">
-      <input type="hidden" name="y">
-      <input type="hidden" name="width">
-      <input type="hidden" name="height">
-      <input type="submit" value="Save Annotation">
+      <input type="hidden" name="annotations">
     </form>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
     <script>
       const image = document.getElementById('image');
+      const container = document.getElementById('container');
+      const addBoxButton = document.getElementById('addBox');
+      const saveAnnotationsButton = document.getElementById('saveAnnotations');
+      const labelSelect = document.getElementById('labelSelect');
+      const deleteBoxButton = document.getElementById('deleteBox');
+      const form = document.getElementById('annotationForm');
       const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
-      const form = document.getElementById('annotationForm');
-      let startX, startY, isDrawing = false;
+      const annotations = [];
+      let selectedBox = null;
 
       image.onload = () => {
         canvas.width = image.width;
         canvas.height = image.height;
+        ctx.drawImage(image, 0, 0);
       };
 
-      canvas.addEventListener('mousedown', (e) => {
-        startX = e.offsetX;
-        startY = e.offsetY;
-        isDrawing = true;
+      addBoxButton.addEventListener('click', () => {
+        const box = document.createElement('div');
+        box.className = 'box';
+        box.style.left = '50px';
+        box.style.top = '50px';
+        box.style.width = '100px';
+        box.style.height = '100px';
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.innerHTML = labelSelect.value;
+        box.appendChild(label);
+
+        container.appendChild(box);
+
+        interact(box)
+          .draggable({
+            onmove: event => {
+              const target = event.target;
+              const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+              const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+              target.style.transform = `translate(${x}px, ${y}px)`;
+              target.setAttribute('data-x', x);
+              target.setAttribute('data-y', y);
+            }
+          })
+          .resizable({
+            edges: { left: true, right: true, bottom: true, top: true }
+          })
+          .on('resizemove', event => {
+            const target = event.target;
+            let x = (parseFloat(target.getAttribute('data-x')) || 0);
+            let y = (parseFloat(target.getAttribute('data-y')) || 0);
+
+            target.style.width = `${event.rect.width}px`;
+            target.style.height = `${event.rect.height}px`;
+
+            x += event.deltaRect.left;
+            y += event.deltaRect.top;
+
+            target.style.transform = `translate(${x}px, ${y}px)`;
+            target.setAttribute('data-x', x);
+            target.setAttribute('data-y', y);
+          });
+
+        annotations.push({
+          element: box,
+          filename: '{{ filename }}',
+          label: labelSelect.value,
+          bbox: [box.offsetLeft, box.offsetTop, box.offsetWidth, box.offsetHeight]
+        });
+
+        box.addEventListener('click', () => {
+          selectedBox = box;
+          labelSelect.value = annotations.find(ann => ann.element === box).label;
+        });
+
+        labelSelect.addEventListener('change', () => {
+          if (selectedBox) {
+            const annotation = annotations.find(ann => ann.element === selectedBox);
+            if (annotation) {
+              annotation.label = labelSelect.value;
+              selectedBox.querySelector('.label').innerHTML = labelSelect.value;
+            }
+          }
+        });
+
+        deleteBoxButton.addEventListener('click', () => {
+          if (selectedBox) {
+            container.removeChild(selectedBox);
+            const index = annotations.findIndex(ann => ann.element === selectedBox);
+            if (index !== -1) {
+              annotations.splice(index, 1);
+            }
+            selectedBox = null;
+          }
+        });
       });
 
-      canvas.addEventListener('mousemove', (e) => {
-        if (isDrawing) {
-          const x = e.offsetX;
-          const y = e.offsetY;
-          const width = x - startX;
-          const height = y - startY;
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(image, 0, 0);
-          ctx.strokeRect(startX, startY, width, height);
-        }
-      });
-
-      canvas.addEventListener('mouseup', (e) => {
-        if (isDrawing) {
-          const x = e.offsetX;
-          const y = e.offsetY;
-          const width = x - startX;
-          const height = y - startY;
-          form.elements['x'].value = startX;
-          form.elements['y'].value = startY;
-          form.elements['width'].value = width;
-          form.elements['height'].value = height;
-          isDrawing = false;
-        }
+      saveAnnotationsButton.addEventListener('click', () => {
+        const annotationData = annotations.map(ann => ({
+          filename: ann.filename,
+          label: ann.label,
+          bbox: [ann.element.offsetLeft, ann.element.offsetTop, ann.element.offsetWidth, ann.element.offsetHeight]
+        }));
+        form.elements['annotations'].value = JSON.stringify(annotationData);
+        form.submit();
       });
     </script>
   </body>
