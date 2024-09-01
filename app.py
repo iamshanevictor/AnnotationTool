@@ -51,7 +51,11 @@ def save_annotation():
             y_max = y_min + annotation['bbox'][3]
             writer.writerow([annotation['filename'], annotation['label'], x_min, y_min, x_max, y_max])
     
-    return redirect(url_for('index'))
+    return redirect(url_for('success'))
+
+@app.route('/success')
+def success():
+    return render_template('success.html')
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
